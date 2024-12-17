@@ -1,0 +1,21 @@
+[package]
+name = "repkg"
+version = "0.1.0"
+edition = "2021"
+
+[build]
+# Ensure assets folder is included in the build output
+include = ["assets/**/*"]
+
+[dependencies]
+walkdir = "2.5.0"
+eframe = "0.25"
+winapi = { version = "0.3", features = ["winuser","shellapi"] }
+
+[profile.dev]
+panic = "abort"
+[profile.release]
+panic = "abort"
+
+[package.metadata]
+windows_subsystem = "windows"
