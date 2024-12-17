@@ -3,6 +3,7 @@ use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 use std::{thread, time};
+use rfd::FileDialog;
 
 const EXE_BYTES: &[u8] = include_bytes!("../assets/RePKG.exe");
 
@@ -58,16 +59,10 @@ pub fn process_repkg(path: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn wait_for_process_and_cleanup(
-    temp_exe_path: &Path
-) -> Result<(), String> {
-    // 等待一段时间并确保进程完全退出
-    thread::sleep(time::Duration::from_secs(3));
-
-    // 检查临时文件是否仍在使用
-    if let Err(e) = remove_file(temp_exe_path) {
-        return Err(format!("Failed to delete temporary EXE file: {}", e));
+pub fn pick_folder() -> Result<String, String>{
+    if let Some(path) = FileDialog::new().pick_folder() {
+        return Ok(path.to_string_lossy().into_owned())
+    } else {
+        return Err(String::from(""));
     }
-
-    Ok(())
 }

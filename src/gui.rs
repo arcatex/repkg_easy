@@ -1,9 +1,11 @@
 use crate::os;
 use crate::re;
+use eframe::egui::ComboBox;
 use eframe::{
     egui::{self, ecolor::HexColor},
     NativeOptions,
 };
+use std::collections::HashMap;
 
 pub fn configure_fonts(ctx: &egui::Context) {
     use egui::{FontData, FontDefinitions, FontFamily};
@@ -48,10 +50,11 @@ struct ParamCheck {
 
 #[derive(Default)]
 pub struct RepkgApp {
-    pub target: String, // 指定目录
-    pub saved: String,  // 保存目录
-    pub as_title: bool, // 以名称创建文件夹
+    pub target: String,    // 指定目录
+    pub saved: String,     // 保存目录
+    pub as_title: bool,    // 以名称创建文件夹
     pub all_combine: bool, // 所有文件合并到一个文件夹
+    pub cobo_status: usize,
     pub addition_suffix: Vec<String>, // 需要添加保存的后缀名称
 
     search_results: Vec<String>, // 搜索结果
@@ -59,6 +62,27 @@ pub struct RepkgApp {
     message: Option<String>,
 }
 
+impl RepkgApp {
+    // 根据 feature_state 显示对应的字符串
+    fn cobo_status_to_str(&self) -> &'static str {
+        match self.cobo_status {
+            0 => "以文件夹分类",
+            1 => "合并到文件夹",
+            2 => "分类和合并",
+            _ => "以文件夹分类", // 默认为 "Invalid" 状态
+        }
+    }
+
+    // 从字符串转换成对应的 usize 值
+    fn str_to_cobo_status(state: &str) -> usize {
+        match state {
+            "以文件夹分类" => 0,
+            "合并到文件夹" => 1,
+            "分类和合并" => 2,
+            _ => 0, // 默认为 Invalid
+        }
+    }
+}
 
 impl eframe::App for RepkgApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -70,9 +94,48 @@ impl eframe::App for RepkgApp {
             ui.horizontal(|ui| {
                 ui.label("壁纸大目录：");
                 ui.text_edit_singleline(&mut self.target);
+                if ui.button("Select Folder").clicked() {
+                    match os::pick_folder() {
+                        Ok(path) => {
+                            self.target = path;
+                        }
+                        Err(e) => {
+                            ui.label("No path selected.");
+                        }
+                    }
+                }
                 ui.add_space(10.0); // 可选：在两个输入框之间增加间距
+                
+            });
+            ui.separator();
+
+            ui.horizontal(|ui| {
                 ui.label("提取结果存放目录：");
                 ui.text_edit_singleline(&mut self.saved);
+                if ui.button("Select Folder").clicked() {
+                    match os::pick_folder() {
+                        Ok(path) => {
+                            self.saved = path;
+                        }
+                        Err(e) => {
+                            ui.label("No path selected.");
+                        }
+                    }
+                }
+            });
+            ui.separator();
+
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut self.as_title, "以名称创建文件夹");
+                ui.add_space(30.0); // 可选：在两个输入框之间增加间距
+                ComboBox::from_label("提取文件保存")
+                    .selected_text(self.cobo_status_to_str()) // 显示当前状态
+                    .show_ui(ui, |ui| {
+                        // 显示选项并设置对应的 usize 值
+                        ui.selectable_value(&mut self.cobo_status, 0, "以文件夹分类");
+                        ui.selectable_value(&mut self.cobo_status, 1, "合并到文件夹");
+                        ui.selectable_value(&mut self.cobo_status, 2, "分类和合并");
+                    });
             });
             ui.separator();
 
@@ -87,14 +150,19 @@ impl eframe::App for RepkgApp {
                     let argumets = re::Param {
                         target: self.target.clone(),
                         saved: self.saved.clone(),
+                        as_title: self.as_title,
+                        all_combine: self.all_combine,
+                        cobo_status: self.cobo_status,
+                        addition_suffix: self.addition_suffix.clone(),
                     };
 
-                    if let Err(e) = re::extract(argumets) {
-                        self.status_message = if self.search_results.is_empty() {
-                            "未找到匹配的文件！".to_string()
-                        } else {
-                            format!("找到 {} 个文件！", self.search_results.len())
-                        };
+                    match re::extract(argumets) {
+                        Ok(s) => {
+                            self.status_message = format!("提取到【{}】个文件。", s);
+                        }
+                        Err(e) => {
+                            self.status_message = format!("提取出错：{}", e);
+                        }
                     }
                 }
             }
@@ -102,10 +170,6 @@ impl eframe::App for RepkgApp {
             ui.separator();
             // 显示状态信息
             ui.label(&self.status_message);
-
-            // 显示搜索结果
-            ui.separator();
-            ui.label("搜索结果：");
 
             if let Some(mes) = self.message.clone() {
                 // 创建一个错误窗口，并设置位置和大小
@@ -125,7 +189,6 @@ impl eframe::App for RepkgApp {
     }
 }
 
-
 fn check_search_param(target: &str, saved: &str) -> ParamCheck {
     if target.is_empty() {
         return ParamCheck {
@@ -144,10 +207,3 @@ fn check_search_param(target: &str, saved: &str) -> ParamCheck {
         message: String::from(""),
     }
 }
-
-
-
-
-
-
-
